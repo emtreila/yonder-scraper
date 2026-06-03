@@ -1,89 +1,104 @@
-/**
- * SOLR Module - Job/Company Storage via Apache Solr
- */
+import fetch from 'node-fetch';
 
-import fetch from "node-fetch";
-import fs from "fs";
-import * as dotenv from "dotenv";
+const SOLR_URL = process.env.SOLR_URL || 'https://solr.peviitor.ro/solr/job';
+const SOLR_COMPANY_URL = process.env.SOLR_COMPANY_URL || 'https://solr.peviitor.ro/solr/company';
+const TIMEOUT = 10000;
 
-dotenv.config();
+export function getSolrAuth() {
+  const auth = process.env.SOLR_AUTH;
+  if (!auth) return null;
+  return 'Basic ' + Buffer.from(auth).toString('base64');
+}
 
-const SOLR_BASE = process.env.SOLR_BASE || "https://peviitor.solr.host/";
-const SOLR_CORE_FEED = process.env.SOLR_CORE_FEED || "jobs";
-const SOLR_CORE_COMPANY = process.env.SOLR_CORE_COMPANY || "companies";
-const SOLR_AUTH = process.env.SOLR_AUTH || "";
-const REQUEST_TIMEOUT = 30000;
-
-function buildHeaders() {
-  const headers = {
-    "Content-Type": "application/json",
-    "User-Agent": "solr-update-yonder/1.0"
-  };
-  if (SOLR_AUTH) {
-    headers["Authorization"] = `Basic ${SOLR_AUTH}`;
-  }
+function getHeaders() {
+  const headers = { 'Content-Type': 'application/json', 'User-Agent': 'job_seeker_ro_spider' };
+  const auth = getSolrAuth();
+  if (auth) headers['Authorization'] = auth;
   return headers;
 }
 
-function buildUrl(core, path = "") {
-  return `${SOLR_BASE.replace(/\/+$/, "")}/solr/${core}/${path}`;
+export async function querySOLR(cif) {
+  const url = `${SOLR_URL}/select?q=cif:${cif}&rows=100&wt=json`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders(),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`SOLR query error: ${response.status}`);
+  return response.json();
 }
 
-async function solrRequest(url, method = "GET", body = null) {
-  const options = {
-    method,
-    headers: buildHeaders(),
-    signal: AbortSignal.timeout ? AbortSignal.timeout(REQUEST_TIMEOUT) : undefined
-  };
-  if (body) options.body = JSON.stringify(body);
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`SOLR ${method} ${url} returned ${res.status}: ${text.slice(0, 300)}`);
-  }
-  return await res.json();
-}
-
-export async function querySOLR(cif, rows = 0) {
-  const query = `cif:${cif}`;
-  const url = buildUrl(SOLR_CORE_FEED, `select?q=${encodeURIComponent(query)}&rows=${rows}&wt=json`);
-  return await solrRequest(url);
-}
-
-export async function deleteJobByUrl(url) {
-  const deleteUrl = buildUrl(SOLR_CORE_FEED, "update?commit=true");
-  const body = { delete: { query: `url:"${url}"` } };
-  return await solrRequest(deleteUrl, "POST", body);
+export async function queryCompanySOLR(companyQuery) {
+  const url = `${SOLR_COMPANY_URL}/select?q=${encodeURIComponent(companyQuery)}&rows=10&wt=json`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders(),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`SOLR company query error: ${response.status}`);
+  return response.json();
 }
 
 export async function deleteJobsByCIF(cif) {
-  const deleteUrl = buildUrl(SOLR_CORE_FEED, "update?commit=true");
+  const url = `${SOLR_URL}/update?commit=true`;
   const body = { delete: { query: `cif:${cif}` } };
-  return await solrRequest(deleteUrl, "POST", body);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`SOLR delete error: ${response.status}`);
+  return response.json();
 }
 
-export async function upsertJobs(jobs, commit = true) {
-  if (!jobs || jobs.length === 0) {
-    console.log("No jobs to upsert");
-    return;
-  }
-  const url = buildUrl(SOLR_CORE_FEED, `update${commit ? "?commit=true" : ""}`);
-  return await solrRequest(url, "POST", jobs);
+export async function deleteJobByUrl(url) {
+  const solrUrl = `${SOLR_URL}/update?commit=true`;
+  const body = { delete: { query: `url:"${url}"` } };
+  const response = await fetch(solrUrl, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`SOLR delete by URL error: ${response.status}`);
+  return response.json();
 }
 
 export async function upsertCompany(companyData) {
-  const url = buildUrl(SOLR_CORE_COMPANY, "update?commit=true");
-  return await solrRequest(url, "POST", [companyData]);
+  const url = `${SOLR_COMPANY_URL}/update/json?commit=true`;
+  const AUTH = process.env.SOLR_AUTH;
+  const headers = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'job_seeker_ro_spider'
+  };
+  if (AUTH) headers['Authorization'] = 'Basic ' + Buffer.from(AUTH).toString('base64');
+  const payload = Array.isArray(companyData) ? companyData : [companyData];
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`SOLR company upsert error: ${response.status}`);
+  return response.json();
 }
 
-export async function getCompanyByCIF(cif) {
-  const query = `id:${cif}`;
-  const url = buildUrl(SOLR_CORE_COMPANY, `select?q=${encodeURIComponent(query)}&rows=1&wt=json`);
-  const result = await solrRequest(url);
-  return result.response?.docs?.[0] || null;
+export async function upsertJobs(jobs) {
+  const url = `${SOLR_URL}/update?commit=true`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(jobs),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`SOLR upsert error: ${response.status}`);
+  return response.json();
 }
 
-export async function deleteCompanyByCIF(cif) {
-  const url = buildUrl(SOLR_CORE_COMPANY, "update?commit=true");
-  return await solrRequest(url, "POST", { delete: { query: `id:${cif}` } });
+export async function checkUrl(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+    return response.ok;
+  } catch { return false; }
 }

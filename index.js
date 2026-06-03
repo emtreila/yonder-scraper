@@ -1,44 +1,37 @@
-/**
- * Yonder Job Scraper - Main Entry Point
- *
- * PURPOSE: Scrapes job listings from Yonder (tss-yonder.com) careers page
- * and stores them in Solr for the peviitor.ro platform.
- */
-
 import fetch from "node-fetch";
 import * as cheerio from "cheerio";
-import fs from "fs";
-import { fileURLToPath } from "url";
-import { validateAndGetCompany } from "./company.js";
-import { querySOLR, deleteJobByUrl, upsertJobs, upsertCompany } from "./solr.js";
+import { writeFileSync } from "fs";
+import { pathToFileURL } from "url";
+import * as company from "./company.js";
+import * as solr from "./solr.js";
 
+const COMPANY_BRAND = "Yonder";
 const COMPANY_CIF = "4906881";
+const COMPANY_NAME = "YONDER SRL";
+const CAREERS_URL = "https://tss-yonder.com/job";
+const JOB_BASE = "https://tss-yonder.com";
 const TIMEOUT = 10000;
-const JOBS_URL = "https://tss-yonder.com/job";
-
-let COMPANY_NAME = null;
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function fetchJobsPage() {
-  const res = await fetch(JOBS_URL, {
-    headers: {
-      "User-Agent": "job_seeker_ro_spider",
-      "Accept": "text/html"
-    }
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP error ${res.status} fetching Yonder careers page`);
-  }
-
-  return await res.text();
-}
 
 const SENIORITY_WORDS = ["internship", "intern", "junior", "mid", "senior", "tech lead", "architect"];
 const LOCATIONS = ["cluj-napoca", "iasi", "romania (remote)", "remote", "romania"];
 
-function parseJobs(html) {
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchCareersPage() {
+  const response = await fetch(CAREERS_URL, {
+    headers: {
+      "User-Agent": "job_seeker_ro_spider",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    },
+    signal: AbortSignal.timeout(TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`Careers page error: ${response.status}`);
+  return response.text();
+}
+
+function parseJobsFromHtml(html) {
   const $ = cheerio.load(html);
   const jobs = [];
 
@@ -49,12 +42,10 @@ function parseJobs(html) {
     const link = $(el);
     const url = link.attr("href") || "";
     const text = link.text().trim().replace(/\s+/g, " ");
-
     if (!url || !text) return;
 
     let rest = text.toLowerCase();
     let seniority = "";
-
     for (const s of SENIORITY_WORDS) {
       if (rest.startsWith(s)) {
         seniority = s;
@@ -79,8 +70,10 @@ function parseJobs(html) {
     if (location.includes("remote")) workmode = "remote";
     else if (location.includes("hybrid")) workmode = "hybrid";
 
+    const fullUrl = url.startsWith("http") ? url : `${JOB_BASE}${url}`;
+
     jobs.push({
-      url: url.startsWith("http") ? url : `https://tss-yonder.com${url}`,
+      url: fullUrl,
       title: seniority ? `${seniority.charAt(0).toUpperCase() + seniority.slice(1)} ${title}` : title,
       workmode,
       location: location ? [locTitle] : ["România"]
@@ -90,83 +83,112 @@ function parseJobs(html) {
   return jobs;
 }
 
-function mapToJobModel(rawJob, cif, companyName = COMPANY_NAME) {
-  const now = new Date().toISOString();
+function mapToJobModel(rawJob, cif, companyName) {
   const job = {
     url: rawJob.url,
     title: rawJob.title,
     company: companyName,
-    cif: cif,
-    location: rawJob.location?.length ? rawJob.location : undefined,
-    workmode: rawJob.workmode || undefined,
-    date: now,
-    status: "scraped"
+    cif,
+    location: rawJob.location,
+    workmode: rawJob.workmode,
+    date: new Date().toISOString(),
+    status: 'scraped',
   };
-  Object.keys(job).forEach((k) => job[k] === undefined && delete job[k]);
+  Object.keys(job).forEach(key => {
+    if (job[key] === undefined) delete job[key];
+  });
   return job;
 }
 
+function transformJobsForSOLR(payload) {
+  return {
+    ...payload,
+    company: COMPANY_NAME,
+    jobs: payload.jobs.map(job => ({
+      ...job,
+      company: COMPANY_NAME,
+      location: (job.location || []).length > 0 ? job.location : ['România'],
+    }))
+  };
+}
+
 async function main() {
-  const testOnlyOnePage = process.argv.includes("--test");
+  console.log(`[${COMPANY_BRAND} Scraper] Starting...`);
 
   try {
-    const existingResult = await querySOLR(COMPANY_CIF);
-    console.log(`Found ${existingResult.numFound} existing jobs in SOLR`);
-
-    console.log("Validating company via ANAF...");
-    const { company, cif, address } = await validateAndGetCompany();
-    COMPANY_NAME = company;
-
     try {
-      await upsertCompany({
-        id: cif,
-        company,
-        brand: "Yonder",
-        status: "activ",
-        location: address ? [address] : ["Cluj-Napoca"],
-        website: ["https://tss-yonder.com"],
-        career: ["https://tss-yonder.com/job"],
-        lastScraped: new Date().toISOString().split('T')[0],
-        scraperFile: "https://raw.githubusercontent.com/emtreila/yonder-scraper/master/.github/workflows/scrape.yml"
-      });
-    } catch (err) {
-      console.log(`Note: Could not upsert company to SOLR core: ${err.message}`);
+      const existingResult = await solr.querySOLR(COMPANY_CIF);
+      const existingCount = existingResult?.response?.numFound || 0;
+      console.log(`[${COMPANY_BRAND} Scraper] Existing jobs in SOLR: ${existingCount}`);
+    } catch (e) {
+      console.warn(`[${COMPANY_BRAND} Scraper] SOLR unavailable (${e.message}), continuing`);
     }
 
-    console.log("Fetching jobs from Yonder careers page...");
-    const html = await fetchJobsPage();
-    const rawJobs = parseJobs(html);
-    console.log(`Jobs found: ${rawJobs.length}`);
+    try {
+      const companyData = await company.validateAndGetCompany();
+      if (companyData && companyData.status === 'active') {
+        console.log(`[${COMPANY_BRAND} Scraper] Company validated: ${companyData.company} (CIF: ${companyData.cif})`);
+        try {
+          await solr.upsertCompany({
+            id: COMPANY_CIF,
+            company: COMPANY_NAME,
+            brand: COMPANY_BRAND,
+            status: 'activ',
+            location: ['Cluj-Napoca'],
+            website: ['https://tss-yonder.com'],
+            career: ['https://tss-yonder.com/job'],
+            lastScraped: new Date().toISOString().split('T')[0],
+            scraperFile: 'https://raw.githubusercontent.com/emtreila/yonder-scraper/master/.github/workflows/scrape.yml'
+          });
+        } catch (err) {
+          console.log(`[${COMPANY_BRAND} Scraper] Note: Could not upsert company to SOLR core: ${err.message}`);
+        }
+      } else {
+        console.warn(`[${COMPANY_BRAND} Scraper] Company validation: ${companyData?.status || 'unknown'}`);
+      }
+    } catch (e) {
+      console.warn(`[${COMPANY_BRAND} Scraper] Company validation skipped (${e.message})`);
+    }
 
-    const jobs = rawJobs.map(job => mapToJobModel(job, cif));
+    console.log(`[${COMPANY_BRAND} Scraper] Fetching careers page: ${CAREERS_URL}`);
+    const html = await fetchCareersPage();
+    const rawJobs = parseJobsFromHtml(html);
+    console.log(`[${COMPANY_BRAND} Scraper] Scraped ${rawJobs.length} raw jobs`);
 
-    const payload = {
-      source: "tss-yonder.com",
-      scrapedAt: new Date().toISOString(),
-      company: COMPANY_NAME,
-      cif,
-      jobs
-    };
+    rawJobs.forEach((job, i) => {
+      console.log(`  ${i+1}. ${job.title} - ${job.location.join(", ") || "N/A"} (${job.workmode})`);
+    });
 
-    fs.writeFileSync("jobs.json", JSON.stringify(payload, null, 2), "utf-8");
-    console.log("Saved jobs.json");
+    const mappedJobs = rawJobs.map(job => mapToJobModel(job, COMPANY_CIF, COMPANY_NAME));
+    console.log(`[${COMPANY_BRAND} Scraper] Mapped ${mappedJobs.length} jobs`);
 
-    console.log("Upserting jobs to SOLR...");
-    await upsertJobs(payload.jobs);
+    const solrReadyJobs = transformJobsForSOLR({ source: "tss-yonder.com", company: COMPANY_NAME, cif: COMPANY_CIF, jobs: mappedJobs });
+    console.log(`[${COMPANY_BRAND} Scraper] Transformed ${solrReadyJobs.jobs.length} jobs for SOLR`);
 
-    const finalResult = await querySOLR(COMPANY_CIF);
-    console.log(`\nSUMMARY:`);
-    console.log(`Existing before: ${existingResult.numFound}`);
-    console.log(`Scraped: ${rawJobs.length}`);
-    console.log(`In SOLR after: ${finalResult.numFound}`);
+    if (solrReadyJobs.jobs.length > 0) {
+      try {
+        console.log(`[${COMPANY_BRAND} Scraper] Deleting existing jobs for CIF ${COMPANY_CIF}...`);
+        await solr.deleteJobsByCIF(COMPANY_CIF);
+        console.log(`[${COMPANY_BRAND} Scraper] Old jobs deleted. Upserting ${solrReadyJobs.jobs.length} jobs...`);
+        const result = await solr.upsertJobs(solrReadyJobs.jobs);
+        console.log(`[${COMPANY_BRAND} Scraper] Upsert result:`, result);
+      } catch (e) {
+        console.warn(`[${COMPANY_BRAND} Scraper] SOLR upsert failed (${e.message}), saving locally only`);
+      }
+    }
 
-    console.log("\n=== DONE ===");
+    writeFileSync('jobs.json', JSON.stringify(solrReadyJobs.jobs, null, 2));
+    console.log(`[${COMPANY_BRAND} Scraper] Jobs saved to jobs.json`);
+
+    console.log(`[${COMPANY_BRAND} Scraper] Done! ${solrReadyJobs.jobs.length} jobs processed.`);
   } catch (err) {
-    console.error("Scraper failed:", err);
+    console.error(`[${COMPANY_BRAND} Scraper] Error:`, err.message);
     process.exit(1);
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+export { parseJobsFromHtml, mapToJobModel, transformJobsForSOLR };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

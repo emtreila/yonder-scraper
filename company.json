@@ -18,6 +18,8 @@
     "active": true,
     "address": "MUNICIPIUL CLUJ-NAPOCA, JUD. CLUJ, BD. 21 DECEMBRIE 1989, NR.77, BL.A-B, THE OFFICE, ET.1",
     "registrationNumber": "J1993003604122",
-    "caenCode": "6201"
+    "caenCode": "6201",
+    "vatRegistered": false,
+    "eFacturaRegistered": false
   }
 }

@@ -1,67 +1,89 @@
-/**
- * ANAF Module - Romanian Company Registry Integration
- *
- * Provides ANAF (Agenția Națională de Administrare Fiscală) integration
- * for Romanian company validation via the demoanaf.ro API.
- */
+import fetch from 'node-fetch';
+import { readFileSync, existsSync } from 'fs';
 
-import fetch from "node-fetch";
+const ANAF_API_URL = 'https://demoanaf.ro/api/company/';
+const ANAF_SEARCH_URL = 'https://demoanaf.ro/api/search';
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
 
-const ANAF_API_TIMEOUT = 15000;
-const SEARCH_URL = "https://demoanaf.ro/demo/search.js";
-const COMPANY_URL = "https://api.anaf.ro";
-
-async function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function searchCompany(query) {
-  const url = `${SEARCH_URL}?q=${encodeURIComponent(query)}&_=${Date.now()}`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "job_seeker_ro_spider",
-      "Accept": "application/json"
-    },
-    signal: AbortSignal.timeout(ANAF_API_TIMEOUT)
-  });
-  if (!res.ok) throw new Error(`ANAF search failed: ${res.status}`);
-  return await res.json();
-}
+export async function getCompanyFromANAF(cif) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(`${ANAF_API_URL}${cif}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'job_seeker_ro_spider'
+        },
+        signal: AbortSignal.timeout(10000),
+      });
 
-export async function getCompanyFromANAF(cui) {
-  const timestamp = Date.now();
-  const url = `${COMPANY_URL}/anaf/ws/echilibru/${cui}?_=${timestamp}`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "job_seeker_ro_spider",
-      "Accept": "application/json"
-    },
-    signal: AbortSignal.timeout(ANAF_API_TIMEOUT)
-  });
-  if (!res.ok) throw new Error(`ANAF data fetch failed: ${res.status}`);
-  const data = await res.json();
-  return parseANAFResponse(data);
-}
+      if (!response.ok) {
+        throw new Error(`ANAF API error: ${response.status}`);
+      }
 
-export async function getCompanyFromANAFWithFallback(cui, fallbackData = null) {
-  try {
-    const data = await getCompanyFromANAF(cui);
-    if (data && data.name) return data;
-  } catch (err) {
-    console.log(`ANAF query failed: ${err.message}`);
+      const json = await response.json();
+      if (json.success && json.data) {
+        return json.data;
+      }
+      if (json.success === false) {
+        throw new Error(json.error?.message || 'ANAF returned error');
+      }
+      throw new Error('Invalid ANAF response format');
+    } catch (err) {
+      if (attempt < MAX_RETRIES) {
+        console.log(`  ANAF attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}, retrying...`);
+        await sleep(RETRY_DELAY_MS);
+      } else {
+        throw err;
+      }
+    }
   }
-  return fallbackData;
 }
 
-export function parseANAFResponse(data) {
-  const found = data?.found?.[0] || data;
-  return {
-    cui: found?.cui || null,
-    name: found?.name || found?.denumire || null,
-    address: found?.address || found?.adresa || found?.adresaSediu || null,
-    registrationNumber: found?.registrationNumber || found?.nrRegCom || null,
-    caenCode: found?.caenCode || found?.codCAEN || null,
-    registrationDate: found?.registrationDate || found?.dataInfiintare || null,
-    inactive: found?.inactive || found?.stareInactiv || false
-  };
+export async function getCompanyFromANAFWithFallback(cif, cachedData) {
+  try {
+    return await getCompanyFromANAF(cif);
+  } catch (err) {
+    if (cachedData) {
+      return cachedData;
+    }
+
+    if (existsSync('company.json')) {
+      try {
+        const cached = JSON.parse(readFileSync('company.json', 'utf-8'));
+        if (cached.anaf) {
+          return cached.anaf;
+        }
+      } catch (e) {}
+    }
+
+    return null;
+  }
+}
+
+export async function searchCompany(brandName) {
+  try {
+    const response = await fetch(`${ANAF_SEARCH_URL}?q=${encodeURIComponent(brandName)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'job_seeker_ro_spider'
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`ANAF search API error: ${response.status}`);
+    }
+
+    const json = await response.json();
+    return json.data || [];
+  } catch (err) {
+    return [];
+  }
 }
