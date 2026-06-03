@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yonder Jobs - peviitor.ro</title>
+  <title>YONDER Jobs - peviitor.ro</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -244,13 +244,13 @@
     <div class="logo">
       <a href="https://peviitor.ro/" target="_blank">peviitor</a>
     </div>
-    <a href="https://github.com/emtreila/yonder-scraper/blob/master/docs/README.md" target="_blank">Documentație</a>
+<a href="https://github.com/emtreila/yonder-scraper/blob/master/docs/README.md" target="_blank">Documentație</a>
   </header>
 
   <div class="container">
     <div class="scraper-container">
       <div class="scraper-logo">
-        <div class="logo-text">Yonder</div>
+        <div class="logo-text">YONDER</div>
       </div>
       
       <div class="scraper-info">
@@ -275,9 +275,9 @@
         <div class="features">
           <h3>Ce face acest scraper:</h3>
           <ul>
-            <li>Extrage job-uri de pe tss-yonder.com/job</li>
-            <li>Parsează HTML static cu cheerio</li>
-            <li>Identifică seniority, titlu, locație</li>
+            <li>Extrage job-uri de pe Yonder Careers</li>
+            <li>Parsează HTML cu cheerio</li>
+            <li>Extrage titlu, senioritate, locație</li>
             <li>Validează compania via ANAF</li>
             <li>Salvează în SOLR pentru peviitor.ro</li>
           </ul>
@@ -351,7 +351,7 @@
           } else {
             jobsData.response.docs.forEach(job => {
               const li = document.createElement('li');
-              li.innerHTML = `<a href="${job.url}" target="_blank">${job.job_title || job.title}</a>`;
+              li.innerHTML = `<a href="${job.url}" target="_blank">${job.job_title}</a>`;
               jobsList.appendChild(li);
             });
             page++;
@@ -365,20 +365,20 @@
           }
         });
         const cData = await cRes.json();
-        const comp = cData.company || cData;
+        const comp = cData.company;
         const detailsDiv = document.querySelector('.company-details');
         detailsDiv.innerHTML = `
-          <div class="detail-item"><strong>CIF:</strong> ${comp.id || comp.cif || '4906881'}</div>
-          <div class="detail-item"><strong>Brand:</strong> ${comp.brand || 'Yonder'}</div>
-          <div class="detail-item"><strong>Status:</strong> ${comp.status || 'activ'}</div>
-          <div class="detail-item"><strong>Orașe:</strong> ${(comp.location || ['Cluj-Napoca']).join(', ')}</div>
-          <div class="detail-item"><strong>Website:</strong> <a href="${(comp.website || ['https://tss-yonder.com'])[0]}" target="_blank">${(comp.website || ['https://tss-yonder.com'])[0]}</a></div>
-          <div class="detail-item"><strong>Career:</strong> <a href="${(comp.career || ['https://tss-yonder.com/job'])[0]}" target="_blank">${(comp.career || ['https://tss-yonder.com/job'])[0]}</a></div>
-          <div class="detail-item"><strong>Ultimul scrape:</strong> ${comp.lastScraped || new Date().toISOString().split('T')[0]}</div>
+          <div class="detail-item"><strong>CIF:</strong> ${comp.id}</div>
+          <div class="detail-item"><strong>Brand:</strong> ${comp.brand}</div>
+          <div class="detail-item"><strong>Status:</strong> ${comp.status}</div>
+          <div class="detail-item"><strong>Orașe:</strong> ${comp.location.join(', ')}</div>
+          <div class="detail-item"><strong>Website:</strong> <a href="${comp.website[0]}" target="_blank">${comp.website[0]}</a></div>
+          <div class="detail-item"><strong>Career:</strong> <a href="${comp.career[0]}" target="_blank">${comp.career[0]}</a></div>
+          <div class="detail-item"><strong>Ultimul scrape:</strong> ${comp.lastScraped}</div>
         `;
       } catch(e) {
-        document.getElementById('jobsCount').textContent = '3';
-        document.getElementById('verifiedCount').textContent = '0';
+        document.getElementById('jobsCount').textContent = '?';
+        document.getElementById('verifiedCount').textContent = '?';
         const now = new Date();
         document.getElementById('lastRunTime').textContent = now.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
         document.getElementById('lastRunDate').textContent = now.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' });

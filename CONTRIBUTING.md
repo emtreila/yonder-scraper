@@ -1,4 +1,4 @@
-# Contributing to Yonder Job Scraper
+# Contributing to YONDER Scraper
 
 Thank you for your interest in contributing!
 
@@ -14,7 +14,7 @@ Thank you for your interest in contributing!
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/yonder-scraper.git
+git clone https://github.com/emtreila/yonder-scraper.git
 
 # Install dependencies
 npm install

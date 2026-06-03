@@ -67,12 +67,9 @@ export async function deleteJobByUrl(url) {
 
 export async function upsertCompany(companyData) {
   const url = `${SOLR_COMPANY_URL}/update/json?commit=true`;
-  const AUTH = process.env.SOLR_AUTH;
-  const headers = {
-    'Content-Type': 'application/json',
-    'User-Agent': 'job_seeker_ro_spider'
-  };
-  if (AUTH) headers['Authorization'] = 'Basic ' + Buffer.from(AUTH).toString('base64');
+  const headers = { 'Content-Type': 'application/json', 'User-Agent': 'job_seeker_ro_spider' };
+  const auth = getSolrAuth();
+  if (auth) headers['Authorization'] = auth;
   const payload = Array.isArray(companyData) ? companyData : [companyData];
   const response = await fetch(url, {
     method: 'POST',

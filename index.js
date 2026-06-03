@@ -14,22 +14,46 @@ const JOB_BASE = "https://tss-yonder.com";
 const TIMEOUT = 10000;
 
 const SENIORITY_WORDS = ["internship", "intern", "junior", "mid", "senior", "tech lead", "architect"];
-const LOCATIONS = ["cluj-napoca", "iasi", "romania (remote)", "remote", "romania"];
+const SENIORITY_PATTERN = new RegExp(`^(${SENIORITY_WORDS.join("|")})\\b`, "i");
+const LOCATIONS = ["cluj-napoca", "iasi", "bucuresti", "timisoara", "brasov", "constanta", "craiova", "romania (remote)", "remote", "romania"];
+const LOCATION_LABELS = {
+  "cluj-napoca": "Cluj-Napoca",
+  "iasi": "Iași",
+  "bucuresti": "București",
+  "timisoara": "Timișoara",
+  "brasov": "Brașov",
+  "constanta": "Constanța",
+  "craiova": "Craiova",
+  "romania (remote)": "Romania (Remote)",
+  "remote": "Remote",
+  "romania": "România"
+};
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchCareersPage() {
-  const response = await fetch(CAREERS_URL, {
-    headers: {
-      "User-Agent": "job_seeker_ro_spider",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-    },
-    signal: AbortSignal.timeout(TIMEOUT),
-  });
-  if (!response.ok) throw new Error(`Careers page error: ${response.status}`);
-  return response.text();
+async function fetchCareersPage(retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(CAREERS_URL, {
+        headers: {
+          "User-Agent": "job_seeker_ro_spider",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        signal: AbortSignal.timeout(TIMEOUT),
+      });
+      if (!response.ok) throw new Error(`Careers page error: ${response.status}`);
+      return response.text();
+    } catch (err) {
+      if (attempt < retries) {
+        console.warn(`[${COMPANY_BRAND} Scraper] Fetch attempt ${attempt}/${retries} failed: ${err.message}, retrying...`);
+        await sleep(2000 * attempt);
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 function parseJobsFromHtml(html) {
@@ -44,24 +68,20 @@ function parseJobsFromHtml(html) {
 
     const lower = text.toLowerCase();
 
-    let seniority = "";
-    for (const s of SENIORITY_WORDS) {
-      if (lower.startsWith(s)) {
-        seniority = s;
-        break;
-      }
-    }
+    const seniorityMatch = text.match(SENIORITY_PATTERN);
+    const seniority = seniorityMatch ? seniorityMatch[0] : "";
 
     let location = "";
+    const trimmed = text.replace(/\s+/g, " ").trim().toLowerCase();
     for (const loc of LOCATIONS) {
-      if (lower.endsWith(loc)) {
+      const normalized = trimmed.replace(/[^a-z0-9\s()-]/g, "");
+      if (normalized.endsWith(loc) || normalized === loc) {
         location = loc;
         break;
       }
     }
 
-    const titleStart = seniority ? text.toLowerCase().indexOf(seniority) + seniority.length : 0;
-    const locText = location ? text.slice(-location.length) : "";
+    const titleStart = seniority ? text.indexOf(seniority) + seniority.length : 0;
     const titleEnd = location ? text.length - location.length : text.length;
     const title = text.slice(titleStart, titleEnd).trim();
 
@@ -75,7 +95,7 @@ function parseJobsFromHtml(html) {
       url: fullUrl,
       title: seniority ? `${seniority.charAt(0).toUpperCase() + seniority.slice(1)} ${title}` : title,
       workmode,
-      location: location ? [locText] : ["România"]
+      location: location ? [LOCATION_LABELS[location] || location] : ["România"]
     });
   });
 
@@ -83,7 +103,7 @@ function parseJobsFromHtml(html) {
 }
 
 function mapToJobModel(rawJob, cif, companyName) {
-  const job = {
+  return {
     url: rawJob.url,
     title: rawJob.title,
     company: companyName,
@@ -93,10 +113,6 @@ function mapToJobModel(rawJob, cif, companyName) {
     date: new Date().toISOString(),
     status: 'scraped',
   };
-  Object.keys(job).forEach(key => {
-    if (job[key] === undefined) delete job[key];
-  });
-  return job;
 }
 
 function transformJobsForSOLR(payload) {
@@ -166,9 +182,7 @@ async function main() {
 
     if (solrReadyJobs.jobs.length > 0) {
       try {
-        console.log(`[${COMPANY_BRAND} Scraper] Deleting existing jobs for CIF ${COMPANY_CIF}...`);
-        await solr.deleteJobsByCIF(COMPANY_CIF);
-        console.log(`[${COMPANY_BRAND} Scraper] Old jobs deleted. Upserting ${solrReadyJobs.jobs.length} jobs...`);
+        console.log(`[${COMPANY_BRAND} Scraper] Upserting ${solrReadyJobs.jobs.length} jobs to SOLR...`);
         const result = await solr.upsertJobs(solrReadyJobs.jobs);
         console.log(`[${COMPANY_BRAND} Scraper] Upsert result:`, result);
       } catch (e) {

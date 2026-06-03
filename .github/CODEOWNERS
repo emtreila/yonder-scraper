@@ -1,4 +1,5 @@
-# Owner: @emtreila
-# This file lists the owners for this repository.
+# Default owner
+*       @sebiboga
 
-* @emtreila
+# Code owners for specific directories
+/.github/workflows/ @sebiboga

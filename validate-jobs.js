@@ -58,3 +58,5 @@ if (process.argv[1]?.endsWith("validate-jobs.js")) {
     process.exit(1);
   }
 }
+
+export { validateJob, validateJobsFile };
