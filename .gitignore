@@ -5,3 +5,5 @@ jobs.json
 jobs_existing.json
 coverage/
 test-results/
+
+test-report.html
