@@ -53,7 +53,7 @@ export async function getCompanyFromANAFWithFallback(cui, fallbackData = null) {
   return fallbackData;
 }
 
-function parseANAFResponse(data) {
+export function parseANAFResponse(data) {
   const found = data?.found?.[0] || data;
   return {
     cui: found?.cui || null,

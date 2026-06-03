@@ -35,26 +35,55 @@ async function fetchJobsPage() {
   return await res.text();
 }
 
+const SENIORITY_WORDS = ["internship", "intern", "junior", "mid", "senior", "tech lead", "architect"];
+const LOCATIONS = ["cluj-napoca", "iasi", "romania (remote)", "remote", "romania"];
+
 function parseJobs(html) {
   const $ = cheerio.load(html);
   const jobs = [];
 
-  $("#jobs-list li").each((i, el) => {
-    const link = $(el).find("a");
+  const heading = $("h2:contains('open positions')");
+  const list = heading.nextAll("ul").first();
+
+  list.find("li a").each((i, el) => {
+    const link = $(el);
     const url = link.attr("href") || "";
-    const seniority = link.find("span.super").text().trim();
-    const title = link.find("span.main").text().trim();
-    const location = link.find("span.sub").text().trim();
+    const text = link.text().trim().replace(/\s+/g, " ");
+
+    if (!url || !text) return;
+
+    let rest = text.toLowerCase();
+    let seniority = "";
+
+    for (const s of SENIORITY_WORDS) {
+      if (rest.startsWith(s)) {
+        seniority = s;
+        rest = rest.slice(s.length).trim();
+        break;
+      }
+    }
+
+    let location = "";
+    for (const loc of LOCATIONS) {
+      if (rest.endsWith(loc)) {
+        location = loc;
+        rest = rest.slice(0, -loc.length).trim();
+        break;
+      }
+    }
+
+    const title = rest.charAt(0).toUpperCase() + rest.slice(1);
+    const locTitle = location.charAt(0).toUpperCase() + location.slice(1);
 
     let workmode = "on-site";
-    if (location.toLowerCase().includes("remote")) workmode = "remote";
-    else if (location.toLowerCase().includes("hybrid")) workmode = "hybrid";
+    if (location.includes("remote")) workmode = "remote";
+    else if (location.includes("hybrid")) workmode = "hybrid";
 
     jobs.push({
-      url,
-      title: seniority ? `${seniority} ${title}` : title,
+      url: url.startsWith("http") ? url : `https://tss-yonder.com${url}`,
+      title: seniority ? `${seniority.charAt(0).toUpperCase() + seniority.slice(1)} ${title}` : title,
       workmode,
-      location: location ? [location] : ["România"]
+      location: location ? [locTitle] : ["România"]
     });
   });
 
