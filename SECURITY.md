@@ -1,13 +1,13 @@
-# Security
+# Security Policy
 
-## Reporting Vulnerabilities
+## Supported Versions
 
-If you discover a security issue, please contact the repository owner directly.
-Do not open a public issue.
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | ✅ Active support |
 
-## Dependencies
+## Reporting a Vulnerability
 
-- `node-fetch` - HTTP client
-- `cheerio` - HTML parsing
-- `dotenv` - environment variable management
-- `jest` - testing framework
+Please report security vulnerabilities to the project maintainer via GitHub Issues or contact the ASOCIATIA OPORTUNITATI SI CARIERE team directly.
+
+Do NOT disclose security vulnerabilities publicly until they have been addressed by the maintainers.
