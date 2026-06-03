@@ -42,28 +42,28 @@ function parseJobsFromHtml(html) {
     const text = link.text().trim().replace(/\s+/g, " ");
     if (!url || !text) return;
 
-    let rest = text.toLowerCase();
+    const lower = text.toLowerCase();
 
     let seniority = "";
     for (const s of SENIORITY_WORDS) {
-      if (rest.startsWith(s)) {
+      if (lower.startsWith(s)) {
         seniority = s;
-        rest = rest.slice(s.length).trim();
         break;
       }
     }
 
     let location = "";
     for (const loc of LOCATIONS) {
-      if (rest.endsWith(loc)) {
+      if (lower.endsWith(loc)) {
         location = loc;
-        rest = rest.slice(0, -loc.length).trim();
         break;
       }
     }
 
-    const title = rest.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-    const locTitle = location ? location.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "";
+    const titleStart = seniority ? text.toLowerCase().indexOf(seniority) + seniority.length : 0;
+    const locText = location ? text.slice(-location.length) : "";
+    const titleEnd = location ? text.length - location.length : text.length;
+    const title = text.slice(titleStart, titleEnd).trim();
 
     let workmode = "on-site";
     if (location.includes("remote")) workmode = "remote";
@@ -75,7 +75,7 @@ function parseJobsFromHtml(html) {
       url: fullUrl,
       title: seniority ? `${seniority.charAt(0).toUpperCase() + seniority.slice(1)} ${title}` : title,
       workmode,
-      location: location ? [locTitle] : ["România"]
+      location: location ? [locText] : ["România"]
     });
   });
 
