@@ -1,28 +1,27 @@
 # Yonder Job Scraper
 
-This repository hosts a Python scraping utility that gathers job listings directly from the Yonder (tss-yonder.com) website using BeautifulSoup and requests.
+Automated job scraper for Yonder (tss-yonder.com) Romania.
+Fetches jobs, validates company via ANAF, and stores in Solr for peviitor.ro.
 
-## Features
+## Setup
 
-- Scrapes job titles, links, locations, and seniority levels from Yonder careers page
-- Structured output using Item dataclass
-- Peviitor.ro API integration for job data submission
+```bash
+npm install
+```
 
 ## Usage
 
 ```bash
-pip install -r requirements.txt
-python sites/yonder_scraper.py
+# Run scraper
+npm run scrape
+
+# Run tests
+npm test
+npm run test:unit
+npm run test:integration
+npm run test:e2e
 ```
 
-## Structure
+## Environment
 
-```
-sites/
-  __utils/          # Utility modules (headers, county lookup, etc.)
-  yonder_scraper.py # Main scraper for Yonder jobs
-```
-
-## License
-
-MIT
+Set `SOLR_AUTH` (base64-encoded credentials) and optionally `SOLR_BASE` for Solr access.

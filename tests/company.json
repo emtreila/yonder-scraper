@@ -1,0 +1,18 @@
+{
+  "validatedAt": "2026-06-03T00:00:00.000Z",
+  "source": "ANAF",
+  "brand": "Yonder",
+  "anaf": {
+    "cui": 4906881,
+    "name": "YONDER SRL",
+    "address": "CLUJ-NAPOCA",
+    "registrationNumber": "J1993003604122",
+    "caenCode": "6201"
+  },
+  "summary": {
+    "company": "YONDER SRL",
+    "cif": "4906881",
+    "active": true,
+    "address": "CLUJ-NAPOCA"
+  }
+}
