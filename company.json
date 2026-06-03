@@ -1,25 +1,106 @@
 {
-  "validatedAt": "2026-06-03T00:00:00.000Z",
+  "validatedAt": "2026-06-03T14:30:15.623Z",
   "source": "ANAF",
   "brand": "Yonder",
   "anaf": {
     "cui": 4906881,
+    "fax": "0264599351",
+    "iban": "",
     "name": "YONDER SRL",
-    "address": "MUNICIPIUL CLUJ-NAPOCA, JUD. CLUJ, BD. 21 DECEMBRIE 1989, NR.77, BL.A-B, THE OFFICE, ET.1",
+    "phone": "0364100859",
+    "address": "21 DECEMBRIE 1989, 77, Municipiul Cluj-Napoca, Cluj",
+    "caenCode": "6210",
+    "inactive": false,
+    "splitVat": false,
+    "legalForm": "SRL",
+    "postalCode": "400604",
+    "vatPeriods": [
+      {
+        "end": null,
+        "start": "1994-08-01",
+        "message": "",
+        "yearStart": ""
+      }
+    ],
+    "cashBasisVat": false,
+    "fiscalAddress": {
+      "county": "",
+      "number": "",
+      "street": "",
+      "country": "",
+      "locality": "",
+      "postalCode": ""
+    },
+    "inactiveSince": null,
+    "ownershipForm": "PROPR.PRIVATA-CAPITAL PRIVAT STRAIN",
+    "vatRegistered": true,
+    "cashBasisVatEnd": null,
+    "fiscalAuthority": "Administraţia Fiscală pentru Contribuabili Mijlocii - Cluj",
+    "organizationForm": "PERSOANA JURIDICA",
+    "reactivatedSince": null,
+    "registrationDate": "22/10/1993",
+    "cashBasisVatStart": null,
+    "registrationState": "INREGISTRAT din data 19.11.1993",
+    "eFacturaRegistered": false,
     "registrationNumber": "J1993003604122",
-    "caenCode": "6201",
-    "registrationDate": "1993-10-22",
-    "inactive": false
+    "headquartersAddress": {
+      "street": "21 DECEMBRIE 1989",
+      "number": "77",
+      "locality": "Municipiul Cluj-Napoca",
+      "county": "Cluj",
+      "country": "România",
+      "postalCode": "400604"
+    },
+    "administrators": [
+      {
+        "name": "LAR DANIEL",
+        "role": "administrator"
+      }
+    ],
+    "authorizedCaenCodes": [
+      "4647",
+      "4650",
+      "5819",
+      "5821",
+      "5829",
+      "5920",
+      "6010",
+      "6020",
+      "6039",
+      "6210",
+      "6220",
+      "6290",
+      "7020",
+      "7210",
+      "7220",
+      "7430",
+      "7820",
+      "8210",
+      "8299",
+      "9510",
+      "9699"
+    ],
+    "onrcStatus": 1048,
+    "onrcStatusLabel": "Funcțiune",
+    "vatCheckedAt": "2026-05-26T12:00:21.914Z",
+    "vatStatus": "stale"
   },
-  "peviitor": null,
+  "peviitor": {
+    "total": 0,
+    "page": 0,
+    "rows": 100,
+    "companies": []
+  },
   "summary": {
     "company": "YONDER SRL",
     "cif": "4906881",
     "active": true,
-    "address": "MUNICIPIUL CLUJ-NAPOCA, JUD. CLUJ, BD. 21 DECEMBRIE 1989, NR.77, BL.A-B, THE OFFICE, ET.1",
+    "inactiveSince": null,
+    "reactivatedSince": null,
+    "address": "21 DECEMBRIE 1989, 77, Municipiul Cluj-Napoca, Cluj",
     "registrationNumber": "J1993003604122",
-    "caenCode": "6201",
-    "vatRegistered": false,
+    "caenCode": "6210",
+    "vatRegistered": true,
     "eFacturaRegistered": false
   }
 }

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import fetch from "node-fetch";
 import * as cheerio from "cheerio";
 import { writeFileSync } from "fs";
@@ -35,16 +36,14 @@ function parseJobsFromHtml(html) {
   const $ = cheerio.load(html);
   const jobs = [];
 
-  const heading = $("h2:contains('open positions')");
-  const list = heading.nextAll("ul").first();
-
-  list.find("li a").each((i, el) => {
+  $("li a[href*='/job/']").each((i, el) => {
     const link = $(el);
     const url = link.attr("href") || "";
     const text = link.text().trim().replace(/\s+/g, " ");
     if (!url || !text) return;
 
     let rest = text.toLowerCase();
+
     let seniority = "";
     for (const s of SENIORITY_WORDS) {
       if (rest.startsWith(s)) {
@@ -63,8 +62,8 @@ function parseJobsFromHtml(html) {
       }
     }
 
-    const title = rest.charAt(0).toUpperCase() + rest.slice(1);
-    const locTitle = location.charAt(0).toUpperCase() + location.slice(1);
+    const title = rest.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    const locTitle = location ? location.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "";
 
     let workmode = "on-site";
     if (location.includes("remote")) workmode = "remote";
